@@ -81,10 +81,11 @@ namespace ContosoShopEasy.Models
         public int Id { get; set; }
         public int OrderId { get; set; }
         public PaymentMethod Method { get; set; }
-        public string CardNumber { get; set; }  // This will be a security vulnerability - storing full card numbers
+        public string CardToken { get; set; }  // Tokenized card reference for payment processor
+        public string CardLastFour { get; set; }  // Last 4 digits for display purposes only
+        public CardType CardType { get; set; }  // Detected card type
         public string CardHolderName { get; set; }
         public string ExpiryDate { get; set; }
-        public string CVV { get; set; }  // Another security vulnerability - storing CVV
         public decimal Amount { get; set; }
         public DateTime ProcessedDate { get; set; }
         public PaymentStatus Status { get; set; }
@@ -92,13 +93,35 @@ namespace ContosoShopEasy.Models
 
         public PaymentInfo()
         {
-            CardNumber = string.Empty;
+            CardToken = string.Empty;
+            CardLastFour = string.Empty;
+            CardType = CardType.Unknown;
             CardHolderName = string.Empty;
             ExpiryDate = string.Empty;
-            CVV = string.Empty;
             ProcessedDate = DateTime.UtcNow;
             Status = PaymentStatus.Pending;
         }
+
+        /// <summary>
+        /// Returns a masked display of the card number showing only the last 4 digits.
+        /// </summary>
+        public string GetMaskedCardNumber()
+        {
+            if (string.IsNullOrEmpty(CardLastFour))
+                return "****";
+            return $"**** **** **** {CardLastFour}";
+        }
+    }
+
+    public enum CardType
+    {
+        Unknown = 0,
+        Visa = 1,
+        Mastercard = 2,
+        AmericanExpress = 3,
+        Discover = 4,
+        DinersClub = 5,
+        JCB = 6
     }
 
     public enum PaymentMethod

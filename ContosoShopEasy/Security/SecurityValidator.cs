@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using ContosoShopEasy.Models;
 
 namespace ContosoShopEasy.Security
 {
@@ -78,22 +79,21 @@ namespace ContosoShopEasy.Security
             return true;
         }
 
-        // Vulnerable credit card validation
+        // Credit card validation using secure tokenization
         public bool ValidateCreditCard(string cardNumber)
         {
             if (string.IsNullOrEmpty(cardNumber))
                 return false;
 
-            // Security vulnerability: Log full credit card number
-            Console.WriteLine($"[DEBUG] Validating credit card: {cardNumber}");
+            // Use secure masking for any logging
+            string maskedCard = CardTokenizer.MaskCardNumber(cardNumber);
+            Console.WriteLine($"[INFO] Validating credit card: {maskedCard}");
 
-            // Remove spaces and dashes
-            cardNumber = cardNumber.Replace(" ", "").Replace("-", "");
-
-            // Security vulnerability: Accept any numeric string of reasonable length
-            if (cardNumber.Length >= 13 && cardNumber.Length <= 19 && cardNumber.All(char.IsDigit))
+            // Validate using CardTokenizer with Luhn check
+            if (CardTokenizer.ValidateCardFormat(cardNumber))
             {
-                Console.WriteLine("[INFO] Credit card format appears valid");
+                CardType cardType = CardTokenizer.DetectCardType(cardNumber);
+                Console.WriteLine($"[INFO] Credit card format valid - Type: {cardType}");
                 return true;
             }
 
@@ -168,8 +168,9 @@ namespace ContosoShopEasy.Security
             
             Console.WriteLine("Input validation: ENABLED (but vulnerable)");
             Console.WriteLine("Password encryption: MD5 (WEAK)");
-            Console.WriteLine("Credit card storage: FULL NUMBERS (INSECURE)");
-            Console.WriteLine("Logging level: DEBUG (EXPOSES SENSITIVE DATA)");
+            Console.WriteLine("Credit card storage: TOKENIZED (SECURE - only last 4 digits stored)");
+            Console.WriteLine("CVV storage: DISABLED (SECURE - never stored)");
+            Console.WriteLine("Logging level: INFO (sensitive data masked)");
             Console.WriteLine("SQL injection protection: DISABLED");
             Console.WriteLine("XSS protection: MINIMAL");
             

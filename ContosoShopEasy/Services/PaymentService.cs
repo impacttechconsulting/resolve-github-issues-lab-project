@@ -1,11 +1,11 @@
 using ContosoShopEasy.Models;
 using ContosoShopEasy.Data;
+using ContosoShopEasy.Security;
 
 namespace ContosoShopEasy.Services
 {
     public class PaymentService
     {
-        // Security vulnerability: Hardcoded configuration values (but won't trigger GitHub Secret Scanning)
         private const string PAYMENT_GATEWAY_URL = "https://api.contoso-payments.com";
         private const string MERCHANT_NAME = "ContosoShopEasy";
         private const string GATEWAY_VERSION = "v2.1";
@@ -17,24 +17,23 @@ namespace ContosoShopEasy.Services
             _orderRepository = orderRepository;
         }
 
-        // Vulnerable payment processing method
+        /// <summary>
+        /// Processes a payment securely. CVV is used only for authorization and never stored.
+        /// Card numbers are tokenized and only last 4 digits are retained for display.
+        /// </summary>
         public bool ProcessPayment(string cardNumber, string cardHolderName, string expiryDate, string cvv, decimal amount)
         {
-            // Security vulnerability: Log sensitive payment information
-            Console.WriteLine($"[DEBUG] Processing payment for card: {cardNumber}");
-            Console.WriteLine($"[DEBUG] Card holder: {cardHolderName}");
-            Console.WriteLine($"[DEBUG] Expiry: {expiryDate}, CVV: {cvv}");
-            Console.WriteLine($"[DEBUG] Amount: ${amount}");
+            // Get masked card number for safe logging
+            string maskedCard = CardTokenizer.MaskCardNumber(cardNumber);
             
-            // Security vulnerability: Log configuration details
-            Console.WriteLine($"[DEBUG] Using payment gateway: {PAYMENT_GATEWAY_URL}");
-            Console.WriteLine($"[DEBUG] Merchant: {MERCHANT_NAME}");
-            Console.WriteLine($"[DEBUG] Gateway version: {GATEWAY_VERSION}");
+            Console.WriteLine($"[INFO] Processing payment for card: {maskedCard}");
+            Console.WriteLine($"[INFO] Card holder: {cardHolderName}");
+            Console.WriteLine($"[INFO] Amount: ${amount}");
 
-            // Simulate payment validation (vulnerable)
-            if (!ValidateCardNumber(cardNumber))
+            // Validate card format
+            if (!CardTokenizer.ValidateCardFormat(cardNumber))
             {
-                Console.WriteLine($"[ERROR] Invalid card number: {cardNumber}");
+                Console.WriteLine($"[ERROR] Invalid card format for card ending in {CardTokenizer.GetLastFourDigits(cardNumber)}");
                 return false;
             }
 
@@ -44,21 +43,34 @@ namespace ContosoShopEasy.Services
                 return false;
             }
 
-            // Simulate payment processing
+            // Validate CVV format (used only for authorization, never stored)
+            if (!ValidateCvvFormat(cvv))
+            {
+                Console.WriteLine("[ERROR] Invalid CVV format");
+                return false;
+            }
+
+            // Simulate payment processing with payment gateway
             Console.WriteLine("[INFO] Connecting to payment gateway...");
             Thread.Sleep(1000); // Simulate network delay
 
-            // Security vulnerability: Generate predictable transaction IDs
-            string transactionId = GenerateTransactionId(cardNumber, amount);
+            // Generate transaction ID using only safe data
+            string transactionId = GenerateTransactionId(CardTokenizer.GetLastFourDigits(cardNumber), amount);
             
-            // Security vulnerability: Store sensitive card data
+            // Tokenize card number - CVV is NOT stored, only used for this transaction
+            string cardToken = CardTokenizer.GenerateToken(cardNumber);
+            string lastFour = CardTokenizer.GetLastFourDigits(cardNumber);
+            CardType cardType = CardTokenizer.DetectCardType(cardNumber);
+            
+            // Create payment info with tokenized data only (no CVV, no full card number)
             var paymentInfo = new PaymentInfo
             {
                 Method = PaymentMethod.CreditCard,
-                CardNumber = cardNumber, // Should never store full card numbers
+                CardToken = cardToken,
+                CardLastFour = lastFour,
+                CardType = cardType,
                 CardHolderName = cardHolderName,
                 ExpiryDate = expiryDate,
-                CVV = cvv, // Should never store CVV
                 Amount = amount,
                 ProcessedDate = DateTime.UtcNow,
                 Status = PaymentStatus.Approved,
@@ -66,31 +78,27 @@ namespace ContosoShopEasy.Services
             };
 
             Console.WriteLine($"[SUCCESS] Payment processed successfully!");
-            Console.WriteLine($"[DEBUG] Transaction ID: {transactionId}");
-            
-            // Security vulnerability: Log complete payment details
-            Console.WriteLine($"[LOG] Payment completed - Card: {cardNumber}, Amount: ${amount}, Transaction: {transactionId}");
+            Console.WriteLine($"[INFO] Card type: {cardType}");
+            Console.WriteLine($"[INFO] Card: {paymentInfo.GetMaskedCardNumber()}");
+            Console.WriteLine($"[INFO] Transaction ID: {transactionId}");
 
             return true;
         }
 
-        // Vulnerable card validation
-        private bool ValidateCardNumber(string cardNumber)
+        /// <summary>
+        /// Validates CVV format (3-4 digits). CVV is only used for authorization and never stored.
+        /// </summary>
+        private bool ValidateCvvFormat(string cvv)
         {
-            // Security vulnerability: Weak validation - only checks length
-            if (string.IsNullOrEmpty(cardNumber))
+            if (string.IsNullOrEmpty(cvv))
                 return false;
 
-            // Remove spaces and dashes
-            cardNumber = cardNumber.Replace(" ", "").Replace("-", "");
-
-            // Security vulnerability: Accept any 13-19 digit number
-            return cardNumber.Length >= 13 && cardNumber.Length <= 19 && cardNumber.All(char.IsDigit);
+            // CVV should be 3-4 digits (3 for Visa/MC, 4 for Amex)
+            return cvv.Length >= 3 && cvv.Length <= 4 && cvv.All(char.IsDigit);
         }
 
         private bool ValidateExpiryDate(string expiryDate)
         {
-            // Security vulnerability: Basic validation only
             if (string.IsNullOrEmpty(expiryDate) || !expiryDate.Contains("/"))
                 return false;
 
@@ -100,6 +108,9 @@ namespace ContosoShopEasy.Services
 
             if (int.TryParse(parts[0], out int month) && int.TryParse(parts[1], out int year))
             {
+                if (month < 1 || month > 12)
+                    return false;
+                    
                 if (year < 100) year += 2000; // Convert YY to YYYY
                 var expiry = new DateTime(year, month, 1).AddMonths(1).AddDays(-1);
                 return expiry >= DateTime.Now;
@@ -108,22 +119,21 @@ namespace ContosoShopEasy.Services
             return false;
         }
 
-        // Security vulnerability: Predictable transaction ID generation
-        private string GenerateTransactionId(string cardNumber, decimal amount)
+        /// <summary>
+        /// Generates a transaction ID using only safe data (last 4 digits, not full card number).
+        /// </summary>
+        private string GenerateTransactionId(string lastFour, decimal amount)
         {
-            // Vulnerable: Using predictable pattern
-            string lastFour = cardNumber.Length >= 4 ? cardNumber.Substring(cardNumber.Length - 4) : cardNumber;
             string timestamp = DateTime.Now.ToString("yyyyMMddHHmm");
             string amountStr = amount.ToString("F2").Replace(".", "");
+            string uniquePart = Guid.NewGuid().ToString("N").Substring(0, 8);
             
-            return $"TXN_{timestamp}_{lastFour}_{amountStr}";
+            return $"TXN_{timestamp}_{lastFour}_{uniquePart}";
         }
 
         public bool RefundPayment(string transactionId, decimal amount)
         {
-            // Security vulnerability: Log refund details
-            Console.WriteLine($"[DEBUG] Processing refund for transaction: {transactionId}, Amount: ${amount}");
-            Console.WriteLine($"[DEBUG] Using payment gateway: {PAYMENT_GATEWAY_URL}");
+            Console.WriteLine($"[INFO] Processing refund for transaction: {transactionId}, Amount: ${amount}");
 
             // Simulate refund processing
             Console.WriteLine("[INFO] Processing refund...");
@@ -133,13 +143,15 @@ namespace ContosoShopEasy.Services
             return true;
         }
 
-        // Method to get payment history - with security issues
+        /// <summary>
+        /// Gets payment history for a user. Returns only tokenized/masked card data.
+        /// </summary>
         public List<PaymentInfo> GetPaymentHistory(int userId)
         {
-            Console.WriteLine($"[DEBUG] Retrieving payment history for user: {userId}");
+            Console.WriteLine($"[INFO] Retrieving payment history for user: {userId}");
             
             // In a real app, this would query the database
-            // For demo purposes, we'll return empty list
+            // Payment data returned would only contain tokens and last 4 digits
             return new List<PaymentInfo>();
         }
     }
