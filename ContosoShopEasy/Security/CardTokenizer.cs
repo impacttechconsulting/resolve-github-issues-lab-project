@@ -97,15 +97,19 @@ namespace ContosoShopEasy.Security
             // Mastercard: starts with 51-55 or 2221-2720
             if (normalizedCard.Length >= 2)
             {
-                int firstTwo = int.Parse(normalizedCard.Substring(0, 2));
-                if (firstTwo >= 51 && firstTwo <= 55)
-                    return CardType.Mastercard;
+                if (int.TryParse(normalizedCard.Substring(0, 2), out int firstTwo))
+                {
+                    if (firstTwo >= 51 && firstTwo <= 55)
+                        return CardType.Mastercard;
+                }
 
                 if (normalizedCard.Length >= 4)
                 {
-                    int firstFour = int.Parse(normalizedCard.Substring(0, 4));
-                    if (firstFour >= 2221 && firstFour <= 2720)
-                        return CardType.Mastercard;
+                    if (int.TryParse(normalizedCard.Substring(0, 4), out int firstFour))
+                    {
+                        if (firstFour >= 2221 && firstFour <= 2720)
+                            return CardType.Mastercard;
+                    }
                 }
             }
 
@@ -115,16 +119,20 @@ namespace ContosoShopEasy.Security
 
             if (normalizedCard.Length >= 3)
             {
-                int firstThree = int.Parse(normalizedCard.Substring(0, 3));
-                if (firstThree >= 644 && firstThree <= 649)
-                    return CardType.Discover;
+                if (int.TryParse(normalizedCard.Substring(0, 3), out int firstThree))
+                {
+                    if (firstThree >= 644 && firstThree <= 649)
+                        return CardType.Discover;
+                }
             }
 
             if (normalizedCard.Length >= 6)
             {
-                int firstSix = int.Parse(normalizedCard.Substring(0, 6));
-                if (firstSix >= 622126 && firstSix <= 622925)
-                    return CardType.Discover;
+                if (int.TryParse(normalizedCard.Substring(0, 6), out int firstSix))
+                {
+                    if (firstSix >= 622126 && firstSix <= 622925)
+                        return CardType.Discover;
+                }
             }
 
             // Diners Club: starts with 300-305, 36, 38, or 39
@@ -133,17 +141,21 @@ namespace ContosoShopEasy.Security
 
             if (normalizedCard.Length >= 3)
             {
-                int firstThree = int.Parse(normalizedCard.Substring(0, 3));
-                if (firstThree >= 300 && firstThree <= 305)
-                    return CardType.DinersClub;
+                if (int.TryParse(normalizedCard.Substring(0, 3), out int firstThree))
+                {
+                    if (firstThree >= 300 && firstThree <= 305)
+                        return CardType.DinersClub;
+                }
             }
 
             // JCB: starts with 3528-3589
             if (normalizedCard.Length >= 4)
             {
-                int firstFour = int.Parse(normalizedCard.Substring(0, 4));
-                if (firstFour >= 3528 && firstFour <= 3589)
-                    return CardType.JCB;
+                if (int.TryParse(normalizedCard.Substring(0, 4), out int firstFour))
+                {
+                    if (firstFour >= 3528 && firstFour <= 3589)
+                        return CardType.JCB;
+                }
             }
 
             return CardType.Unknown;
